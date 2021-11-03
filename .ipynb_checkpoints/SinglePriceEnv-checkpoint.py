@@ -29,10 +29,10 @@ class PriceEnv(gym.Env):
         # NB: Ray throws exceptions for any `0` value Discrete
         # observations so we'll make position a 1's based value
         high = 5000.0* np.ones(self.dim_state)
-        low = -high      
-        self.observation_space = gym.spaces.Box(low=low, high=high)
-        
+        low = -high
         self.t = 0
+        
+        self.observation_space = gym.spaces.Box(low=low, high=high)
     
     def reset(self):
         self.state = np.repeat(0, 2*self.T)
@@ -60,7 +60,7 @@ class PriceEnv(gym.Env):
         
         #print('reward: ', type(reward.ietm()), reward.item())
         self.t+=1
-        if self.t % self.T == 0:
+        if self.t % self.T ==0:
             done=True
             
         return (self.state, float(reward), done, {})
