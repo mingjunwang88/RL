@@ -33,9 +33,6 @@ class PriceEnv(gym.Env):
         self.observation_space = gym.spaces.Box(low=low, high=high)
         
         self.t = 0
-        
-        ## new start here
-        self.action_space = gym.spaces.
     
     def reset(self):
         self.state = np.repeat(0, 2*self.T)

@@ -15,7 +15,7 @@ class PriceEnv(gym.Env):
     price_grid = np.arange(price_step, price_max, price_step)
     
     
-    ##Since for the descrite action 
+    ##Since for the descrete action 
     
     ## Action size = len(price_grid)
     ## State_size = 2*T
@@ -33,6 +33,9 @@ class PriceEnv(gym.Env):
         self.observation_space = gym.spaces.Box(low=low, high=high)
         
         self.t = 0
+        
+        ## new start here
+        
     
     def reset(self):
         self.state = np.repeat(0, 2*self.T)
