@@ -171,8 +171,8 @@ class Agent():
         
     def update_parms(self):
         
-        critic_dict = dict(self.critic_t.named_parameters())
-        critic_t_dict = dict(self.critic.named_parameters())
+        critic_dict = dict(self.critic.named_parameters())
+        critic_t_dict = dict(self.critic_t.named_parameters())
         
         actor_t_dict = dict(self.actor_t.named_parameters())
         actor_dict = dict(self.actor.named_parameters())
