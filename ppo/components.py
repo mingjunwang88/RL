@@ -222,7 +222,7 @@ class PPO:
         rewards = torch.squeeze(torch.tensor(np.vstack(self.buffer.rewards), dtype=torch.float32)).detach().to(device)
 
         if tdzero:
-            with torch.no_grad():
+            with torch.no_grad():  ##using tdzero does not work!!
                 returns = rewards + self.gamma * torch.squeeze(self.policy_old.critic(old_states_next))
                 #print('returns: ',returns.shape, returns )
         else:
