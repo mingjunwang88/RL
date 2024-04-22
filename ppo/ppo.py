@@ -10,7 +10,7 @@ import gymnasium as gym
 #import roboschool
 import torch as t 
 
-from ppo import PPO
+from components import PPO
 #PPO: state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip, has_continuous_action_space, action_std_init=0.6):
 #env_name ='Pendulum-v1'
 #env_name = 'MountainCarContinuous-v0'
