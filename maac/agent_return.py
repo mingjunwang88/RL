@@ -28,7 +28,7 @@ def env_creator_CC4(env_config: dict):
         steps=500
     )
     cyborg = CybORG(scenario_generator=sg)
-    env = EnterpriseMAE(env=cyborg, pad_spaces = False)
+    env = BlueFlatWrapper(env=cyborg, pad_spaces = False)
     return env
 env = env_creator_CC4({})
 #env = BlueFlatWrapper(env=cyborg, pad_spaces = True)
@@ -68,17 +68,21 @@ class Policy(nn.Module):
 
         self.optimizer = optim.Adam(self.parameters(), lr=lr) #original: lr=3e-3 --mj
         self.eps = np.finfo(np.float32).eps.item()   
+        self.minn = torch.finfo(torch.float).min
 
-    def forward(self, x):
+    def forward(self, x, masks: np.array):
         """
         forward for actor
         x: local obs
         """
         x = F.relu(self.affine_p(x))
-
+        x = self.action_head(x)
         # actor: choses action to take from state s_t
         # by returning probability of each action
-        action_prob = F.softmax(self.action_head(x), dim=0)
+        if isinstance(masks, np.ndarray):
+            x[masks] = self.minn
+        
+        action_prob = F.softmax(x, dim=0)
 
         # critic: evaluates being in the state s_t
         #state_values = self.value_head(x)
@@ -113,7 +117,7 @@ class Agent:
         self.gamma = gamma
         self.agent_idx = agent_idx
 
-    def select_action(self, state: np.array, all_state: np.array):
+    def select_action(self, state: np.array, all_state: np.array, masks: np.array):
         """
         state: Local observation
         state_action: concatenation of all the local observation and action
@@ -122,7 +126,7 @@ class Agent:
         
         """
         state = torch.from_numpy(state).float()
-        probs = self.policy(state)
+        probs = self.policy(state, masks)
 
         all_state = torch.from_numpy(all_state).float()
         state_value = self.policy.value(all_state)
