@@ -56,6 +56,9 @@ class Maac:
         for agent in self.env.agents:
             self.agents[agent].load_model()
 
+    def create_mask(self, inp: str):
+        return 'Invalid'.lower() not in inp.lower()
+
     def select_actions(self, obses: Dict, all_state: np.array) -> Dict:
         """
         Choose action for each agent
@@ -67,10 +70,10 @@ class Maac:
         actions = {}
         for agent in self.env.agents:
             #obs_numeric = self.convert_state_to_numeric(obses[agent], agent)
-            actions[agent] = self.agents[agent].select_action(obses[agent], all_state)
+            actions[agent] = self.agents[agent].select_action(obses[agent], all_state, masks=None)
         return actions
 
-    def plot_learning_curve(self,x, scores, figure_file='output/maac_cyborg_return'):
+    def plot_learning_curve(self,x, scores, figure_file='output/maac_return'):
         running_avg = np.zeros(len(scores))
         for i in range(len(running_avg)):
             running_avg[i] = np.mean(scores[max(0, i-100):(i+1)])
@@ -96,6 +99,8 @@ class Maac:
             
                 while not any(done_list):
                     steps+=1
+                    if evaluate:
+                        self.env.render()
                     
                     """
                     obs_ = {}
@@ -143,8 +148,10 @@ class Maac:
             writer.close()
             print('---------Training Done---------')
 
-from pettingzoo.mpe import simple_adversary_v3
-env = simple_adversary_v3.parallel_env(render_mode='Human', continuous_actions=False)
+from pettingzoo.mpe import simple_adversary_v3, simple_crypto_v3, simple_push_v3
+#env = simple_adversary_v3.parallel_env(render_mode='Human', continuous_actions=False)
+#env = simple_crypto_v3.parallel_env(render_mode="human", continuous_actions=False)
+env = simple_push_v3.parallel_env(render_mode="human", continuous_actions = False)
 env.reset()
 AGENTS = env.agents
 NUM_AGENTS = len(env.agents)
@@ -162,8 +169,8 @@ print('DIM_STATE: ', DIM_STATE)
 print('DIM_ACTION: ', DIM_ACTION)
 
 #           env, dim_state, fc1, fc2, gamma,      lr, tag,  chkpt_dir='output/models/'):
-maac = Maac(env, DIM_STATE, 126, 126, gamma=0.99, lr=3e-3, tag=0)    #3e-3
-maac.learn(maxm_Iters=2000)
+maac = Maac(env, DIM_STATE, 126, 126, gamma=0.99, lr=2e-2, tag=0)    #3e-3
+maac.learn(maxm_Iters=500, evaluate=False)
 maac.load_check_point()
 
 #python3 -m CybORG.Evaluation.evaluation --max-eps 2 . /tmp/output
