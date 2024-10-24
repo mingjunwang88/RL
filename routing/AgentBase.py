@@ -3,10 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import time 
 from copy import copy
-import networkx as nx
 
 class DP_PlanningBase():
-    def __init__(self, env, delta=0.01, alpha=0.99):
+    def __init__(self, env, delta=0.1, alpha=0.99):
         self.env = env
         self.V = np.zeros(env.num_devices)
         self.delta = delta
@@ -19,12 +18,11 @@ class DP_PlanningBase():
     def value_iteration(self, dest, value=1):
         diff = self.delta
         costs = copy(self.env.costs)    
-
-        """
+        
         for i, j in enumerate(costs[:,dest]):
             if j > 0:
                 costs[int(i),int(dest)] = value #make the dest have larger reward!!
-        """
+        
         diffs = np.zeros(self.env.num_devices)
         self.PI = np.zeros(self.env.num_devices)
         
@@ -36,12 +34,10 @@ class DP_PlanningBase():
                 actions = self.avaiable_actions(s)
                 v_ = copy(self.V[s])
                 
-                #Since the next step is the same as the action with probability of 1, We use a simple formula
+                #Since the next step is the same as the action with probability of 1, We use a simple fomula
                 if s != dest:
                     Qs = -costs[s,:][actions] + self.alpha*self.V[actions]
-                else:
-                    Qs = -costs[s,:][actions]
-                self.V[s] = np.max(Qs)
+                    self.V[s] = np.max(Qs)
                 
                 diffs[s] = abs(v_- self.V[s])
             diff = np.sum(diffs)
@@ -61,7 +57,6 @@ class DP_PlanningBase():
     def find_path(self, src, dest):
         s = int(copy(src))
         path = []
-        total_cost = 0.
         
         if src == dest:
             print('Already in the dest')
@@ -70,12 +65,10 @@ class DP_PlanningBase():
         
         while s != dest:
             path.append(int(s))
-            s_next = self.PI[int(s)]
-            total_cost+=self.env.costs[int(s),int(s_next)]
-            s = s_next
+            s = self.PI[int(s)]
         path.append(dest)
         
-        return path, total_cost           
+        return path            
     
     def policy_eval(self,):
         pass
@@ -83,16 +76,11 @@ class DP_PlanningBase():
     def policy_improv(self,):
         pass
     
-    def policy_iteration(self,):
+    def policy_iteration():
         self.policy_eval()
-        self.policy_improv()
-
+        self.pllicy_improv()
+        
 if __name__ == '__main__':
-    import importlib
-    import env
-    importlib.reload(env)
-    from env import *
-
     planner = DP_PlanningBase(env)
     
     start = time.time()
