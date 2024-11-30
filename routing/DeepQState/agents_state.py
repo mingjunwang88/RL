@@ -3,10 +3,12 @@ import torch
 import torch as T
 import torch.optim as optim
 import torch.nn.functional as F
-import gym
+import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import permutations, product, combinations
+from copy import copy
+from tqdm import tqdm
 
 ##############################################
 # One state output dim_state number of q values
@@ -14,7 +16,7 @@ from itertools import permutations, product, combinations
 ##############################################
 
 class Model(nn.Module):
-    def __init__(self, num_state, h1, h2, alpha=1e-4, dim_embed=36):
+    def __init__(self, num_state, h1, h2, alpha=1e-4,):
         ##########################################
         # 1: Each node is represented by a embedding
         # 2: Only topology spesfic, not generlaize to other topologies.
@@ -23,9 +25,7 @@ class Model(nn.Module):
         # 5: Num_state: number of nodes
         ##########################################
         super(Model, self).__init__()
-        self.embed = nn.Embedding(num_state, dim_embed)
-        
-        self.linear1 = nn.Linear(2*dim_embed, h1)
+        self.linear1 = nn.Linear(num_state, h1)
         self.linear2 = nn.Linear(h1, h2)
         self.linear3 = nn.Linear(h2,num_state)
         
@@ -34,7 +34,7 @@ class Model(nn.Module):
         
     def forward(self, state):
         ####################################################
-        # State is represented by concatnate of src and dest
+        # State is represented by one hot of the current position
         ####################################################
         output = state.to(self.device)
 
@@ -57,14 +57,14 @@ class replayBuffer():
         self.max_memsize = max_memsize
         self.counter = 0
         
-        self.states_mem = T.zeros((max_memsize, dim_state+dim_state), dtype=T.float32)
-        self.states_mem_new = T.zeros((max_memsize, dim_state+dim_state), dtype=T.float32)
+        self.states_mem = T.zeros((max_memsize, dim_state), dtype=T.float32)
+        self.states_mem_new = T.zeros((max_memsize, dim_state), dtype=T.float32)
         self.action_mem = T.zeros((max_memsize), dtype=T.long)
         self.reward_mem = np.zeros(max_memsize, dtype=np.float32)
         self.done_mem = np.zeros(max_memsize, dtype=bool) 
         self.action_next_mem = T.zeros((max_memsize), dtype=T.long)
         
-    def store_transaction(self, state, action, reward, state_new, actions_new, done):
+    def store_transaction(self, state, action, reward, state_new, done):
         i = self.counter % self.max_memsize
         
         self.states_mem[i] = state
@@ -72,7 +72,6 @@ class replayBuffer():
         self.reward_mem[i] = reward
         self.done_mem[i]  =done
         self.states_mem_new[i] = state_new
-        self.action_next_mem[i] = actions_new
         
         self.counter+=1
            
@@ -85,13 +84,13 @@ class replayBuffer():
         action = self.action_mem[batch]
         reward = self.reward_mem[batch]
         state_new = self.states_mem_new[batch]
-        action_new = self.action_next_mem[batch]
+        #action_new = self.action_next_mem[batch]
         done = self.done_mem[batch]
-        return state, action, reward, state_new, action_new, done
+        return state, action, reward, state_new, done
 
 
 class Agent():
-    def __init__(self, env, num_state, dim_state,h1, h2, max_memsize, alpha=1e-4, batch_size=258, max_iters = 30, epsilon=0.05, steps_target=1000, gamma=0.99):
+    def __init__(self, env, num_state, dim_state,h1, h2, max_memsize, alpha=1e-4, batch_size=258, max_iters = 30, epsilon=0.05, min_epsilon=0.03, steps_target=1000, gamma=0.99):
         self.batch_size = batch_size
         self.gamma = gamma
         self.max_iters = max_iters
@@ -99,13 +98,17 @@ class Agent():
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.max_memsize = max_memsize
         self.epsilon = epsilon
+        self.min_epsilon = min_epsilon
         self.buffer = replayBuffer(max_memsize,dim_state)
         self.loss_fun = nn.MSELoss()
 
-        self.model = Model(num_state,h1, h2, alpha=1e-4,dim_embed=dim_state).to(self.device)
-        self.model_target = Model(num_state, h1, h2, alpha=1e-4,dim_embed=dim_state).to(self.device)
+                          #num_state, h1, h2, alpha=1e-4,):
+        self.model = Model(num_state,h1, h2, alpha=alpha,).to(self.device)
+        self.model_target = Model(num_state, h1, h2, alpha=alpha).to(self.device)
         self.steps_target = steps_target
         self.env = env 
+        self.state_zeros = T.zeros(dim_state)
+        self.decay = 0.99
         
     def plot_learning_curve(self,x, scores, figure_file='test'):
         running_avg = np.zeros(len(scores))
@@ -127,13 +130,20 @@ class Agent():
         actions = [i for i in actions if i not in self.memmory]
         return actions
     
+    def state_converter(self, state):
+        """
+        convert the integer state to one hot state        
+        """
+        zeros = copy(self.state_zeros)
+        zeros[state] = 1
+        return zeros
+
     def act(self, current_pos):
         ##################################
         # Return next position as a tensor
         ##################################
         actions = self.available_actions(current_pos)
         n = len(actions)
-        #print('actions: ', actions)
         
         if n == 0:
             return None
@@ -141,17 +151,10 @@ class Agent():
         if np.random.rand() < self.epsilon:
             return T.tensor(np.random.choice(actions)).to(self.device)
         else:
-            src = self.model.embed(T.tensor(current_pos)).to(self.device)
-            dest = self.model.embed(T.tensor(self.env.dest)).to(self.device)
-            inpt = T.cat((src,dest))
-            #print('inpt: ', inpt.shape)
-            Qs = self.model(inpt)    
-            #print('Qs: ', Qs.shape)
-            #select the max among the available actions
-            if len(Qs)>0:
-                best = T.argmax(Qs[actions])
-                return T.tensor(actions[best])
-            return None
+            current_pos_one_hot = self.state_converter(current_pos)
+            Qs = self.model(current_pos_one_hot)    
+            best = T.argmax(Qs[actions])
+            return T.tensor(actions[best])
         
     def best_action(self, current_pos):
         ##################################
@@ -159,21 +162,14 @@ class Agent():
         ##################################
         actions = self.available_actions(current_pos)
         n = len(actions)
-        #print('actions: ', actions)
         
         if n == 0:
             return None
-        src = self.model.embed(T.tensor(current_pos)).to(self.device)
-        dest = self.model.embed(T.tensor(self.env.dest)).to(self.device)
-        inpt = T.cat((src,dest))
+        current_pos_one_hot = self.state_converter(current_pos)
         
-        Qs = self.model(inpt)    
-            #print('Qs: ', Qs.shape)
-            #select the max among the available actions
-        if len(Qs)>0:
-            best = T.argmax(Qs[actions])
-            return T.tensor(actions[best])
-        return None
+        Qs = self.model(current_pos_one_hot)    
+        best = T.argmax(Qs[actions])
+        return T.tensor(actions[best])
          
     def train(self):
         index = range(self.batch_size)
@@ -181,64 +177,52 @@ class Agent():
         self.model_target.eval()
         self.rewards_list = []
         
-        for i in range(self.max_iters):
-            self.reset_memmory()
-            state = self.env.reset()
-            done=False
-            rewards = 0
-            j=0
-            while not done:
-                j+=1
-                self.model.zero_grad()
-                self.remember_memmory(state[0])
+        for i in tqdm(range(self.max_iters)):
+            for state in range(self.env.num_devices):
+                self.reset_memmory()
+                #state = self.env.reset() # rest the current position
+                done=False
+                rewards = 0
+                while not done:
+                    self.model.zero_grad()
+                    self.remember_memmory(state)
 
-                action = self.act(state[0]) #return a tensor 
-                if action == None:
-                        break
+                    action = self.act(state) #return a tensor 
+                    if action == None:
+                            break
 
-                state_new, reward, done, _ = self.env.step(action.item())
-                rewards+=reward
-                  
-                if not done:
-                    action_new = self.act(state_new[0])
-                    if action_new == None:
-                        break
-                else:
-                    action_new= action #Does not affect since it will be timed by zero
+                    state_new, reward, done, term, _ = self.env.step(action.item())
+                    rewards+=reward
+                    state_embd =self.state_converter(state)
+                    state_new_embed = self.state_converter(state_new)
 
-                state_embd = self.model.embed(T.tensor(state)).view(1,-1) #including src and dest
-                #action_embed = self.model.embed(action)
-                state_new_embed = self.model.embed(T.tensor(state_new)).view(1,-1)
-                #action_new_embd = self.model.embed(action_new)
+                    self.buffer.store_transaction(state_embd, action, reward, state_new_embed, done)
 
-                self.buffer.store_transaction(state_embd, action, reward, state_new_embed, action_new, done)
+                    if self.buffer.counter > self.batch_size:
+                        state_batch, action_batch, reward_batch, state_new_batch, done_batch = self.buffer.sample_buffer(self.batch_size)
+                        q_values = T.squeeze(self.model(state_batch)[index,action_batch])
 
-                if self.buffer.counter > self.batch_size:
-                    state_batch, action_batch, reward_batch, state_new_batch, action_next_batch, done_batch = self.buffer.sample_buffer(self.batch_size)
-                    #print(index.dtypes)
-                    #print(action_batch.dtype)
-                    #print(action_batch.shape)
-                    # Q value
-                    q_values = T.squeeze(self.model(state_batch)[index,action_batch])
+                        # Target value
+                        with T.no_grad():  
+                            q_targets = T.max(self.model_target(state_new_batch), dim=1)[0]
+                            q_targets[done_batch] = 0.0                  
+                            q_targets = torch.tensor(reward_batch).to(self.device) + self.gamma * q_targets
 
-                    # Target value
-                    with T.no_grad():  
-                        q_targets = T.squeeze(self.model_target(state_new_batch)[index,action_next_batch])
-                        q_targets[done_batch] = 0.0                  
-                        q_targets = torch.tensor(reward_batch).to(self.device) + self.gamma * q_targets
+                        # Loss function
+                        loss = self.loss_fun(q_targets,q_values)
+                        loss.backward(retain_graph=False)
 
-                    # Loss function
-                    loss = self.loss_fun(q_targets,q_values)
-                    loss.backward(retain_graph=True)
+                        # Update weights
+                        self.model.optimizer.step()
 
-                    # Update weights
-                    self.model.optimizer.step()
+                        #Update the state
+                        state = state_new
+                        if (self.buffer.counter % self.steps_target) == 0:
+                            self.model_target.load_state_dict(self.model.state_dict())
 
-                    #Update the state
-                    state = state_new
-                    if (self.buffer.counter % self.steps_target) == 0:
-                        self.model_target.load_state_dict(self.model.state_dict())
-                
+                        if self.epsilon > self.min_epsilon:
+                            self.epsilon=self.epsilon * self.decay
+                    
             self.rewards_list.append(rewards)
         
         x = [i+1 for i in range(self.max_iters)]
@@ -254,7 +238,7 @@ class Agent():
         
         if src == dest:
             print('Src and dest are same')
-            return 
+            return hist, cost
         
         while s != dest:
             self.remember_memmory(s)
@@ -264,13 +248,14 @@ class Agent():
                 print('No path found')
                 break
             else:
-                s_next, r, done, _ = self.env.step(a.item())
+                s_next, r, done, term, _ = self.env.step(a.item())
                 cost+=self.env.costs[s,a]
-                s=s_next[0]
+                s=s_next
                 
         hist.append(dest)
+        print(hist, cost)
         
-        return hist,1.*cost
+        return hist, 1.*cost
         
 
 for i in [100, 1000,]:

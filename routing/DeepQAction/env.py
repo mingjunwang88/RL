@@ -1,4 +1,4 @@
-import gym
+import gymnasium as gym
 import numpy as np
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
@@ -10,24 +10,15 @@ import torch
             
 class CitizenBankEnv(gym.Env):
     def __init__(self):
-        df = pd.read_csv('../logical_links.csv')
-        
-        #self.action_space = gym.Env.space.discrete(self.num_action)
-        #self.observation_space = gym.Env.space.discrete(self.num_state)
-        
-        df_device1 = df[['DeviceA']].drop_duplicates().rename(columns={'DeviceA':'DeviceName'})
-        df_device2 = df[['DeviceBName']].drop_duplicates().rename(columns={'DeviceBName':'DeviceName'})
-        
-        self.df_device = pd.concat([df_device1,df_device2]).drop_duplicates().reset_index(drop=True).reset_index(drop=False)
-        
-        self.df = df.merge(self.df_device, how='inner', left_on=['DeviceA'], right_on='DeviceName').rename(columns={'index':'DeviceA_Code'}).drop('DeviceName', axis=1)
-        self.df = self.df.merge(self.df_device,how='inner', left_on='DeviceBName', right_on='DeviceName').rename(columns={'index':'DeviceB_Code'}).drop('DeviceName', axis=1)
- 
-        self.num_devices = self.df_device.shape[0]
-        self.df_device.to_csv("devices.csv", index=False)
-        self.df.to_csv('links.csv', index=False)
+        np.random.seed(0)
+        self.device = pd.read_csv('devices.csv')
+        self.df = pd.read_csv('links.csv')
+        self.df['Bandwidth (Mbps)'] = self.df['Bandwidth (Mbps)'].values * np.random.rand(self.df.shape[0]) #added for some randomnessMJ
+        self.num_devices = self.device.shape[0]
         self.build_costs()
-        self.build_graph()
+        self.topology_graph()
+        self.create_graph()
+        self.state_zeros = np.zeros(self.num_devices)
         self.reset()
     
     #Assuming the weight are the same

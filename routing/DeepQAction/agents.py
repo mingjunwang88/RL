@@ -3,7 +3,7 @@ import torch
 import torch as T
 import torch.optim as optim
 import torch.nn.functional as F
-import gym
+import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import permutations, product, combinations

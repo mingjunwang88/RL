@@ -3,7 +3,7 @@ import torch
 import torch as T
 import torch.optim as optim
 import torch.nn.functional as F
-import gym
+import gymnasium as gum
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import copy
@@ -34,12 +34,12 @@ class Model(nn.Module):
         
     def forward(self, state, action):
         ####################################################
-        # State is represented by concatnate of src and dest
+        # State is represented by the current position
         ####################################################
         state = state.to(self.device)
         action = action.to(self.device)
         
-        output = T.cat((state, action), dim=1)
+        output = T.cat((state, action), dim=-1)
         
         output = F.relu(self.linear1(output))
         output = F.relu(self.linear2(output))
@@ -130,7 +130,7 @@ class Agent():
         
     def available_actions(self, current_pos):
         actions = [i for i, j in enumerate(self.env.costs[current_pos,]) if j > 0]
-        #actions = [i for i in actions if i not in self.memmory]
+        actions = [i for i in actions if i not in self.memmory]
         return actions
     
     def act(self, current_pos):
@@ -201,18 +201,12 @@ class Agent():
         rewards_list = []
                         
         for i in tqdm(range(self.max_iters)): 
+            rewards = 0
             
             for state in range(self.env.num_devices):
-            
-                #set state first
-                #state = self.env.reset()
-                #print('Initial state: ', self.env.state)
-                #print('Destination: ', self.env.dest)
-
                 its = 0
                 self.reset_memmory()
                 done=False
-                rewards = 0
                 len_episod = 0
 
                 while not done:
@@ -269,7 +263,7 @@ class Agent():
                             self.model_target.load_state_dict(self.model.state_dict())
 
                         if self.epsilon > self.min_epsilon:
-                            self.epsilon=self.epsilon/its
+                            self.epsilon=self.epsilon * 0.995
 
             rewards_list.append(rewards)
         #print(rewards_list)

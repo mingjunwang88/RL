@@ -6,7 +6,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm_notebook
 from itertools import product
-import gym
 
 class QAgent():
     def __init__(self,env, num_state, num_action,lr=0.08,gamma=0.95, epsilon = 1.0, epsilon_min = 0.01,epsilon_decay = 0.999, maxm_iters=100):
@@ -83,8 +82,7 @@ class TainAgent():
         plt.title('Running average of previous 100 scores')
         #plt.savefig(figure_file)
     
-    
-    def run_src_dest(self, src, dest):
+    def train_src_dest(self, src, dest):
         #run the path through src to dest
         if src == dest:
             print('src and dest are the same, No need to run')
@@ -106,7 +104,7 @@ class TainAgent():
                     #print(i)
                     break
                 else:
-                    s_next, r, done = self.env.step(a)
+                    s_next, r, done, term, info = self.env.step(a)
                     self.q_agent.update(s,a,r,s_next)
 
                     total_reward+=r
@@ -139,7 +137,7 @@ class TainAgent():
                 print('No path found')
                 break
             else:
-                s_next, r, done = self.env.step(a)
+                s_next, r, done, term, info= self.env.step(a)
                 cost+=self.env.costs[s,a]
                 s=s_next
         hist.append(dest)
@@ -147,7 +145,7 @@ class TainAgent():
         return hist,1.*cost
 
 
-    def train_src_dest(self,episodes):
+    def all_src_dest(self,episodes):
         
         rewards= []
         lst = [i for i in range(self.env.n_stops)]
@@ -156,7 +154,7 @@ class TainAgent():
         
         for i in tqdm_notebook(range(episodes)):
             pair = pairs[np.random.choice(lenth)]
-            reward = self.run_src_dest(pair[0],pair[1])
+            reward = self.train_src_dest(pair[0],pair[1])
             rewards.append(reward)
             
         self.plot(rewards)
