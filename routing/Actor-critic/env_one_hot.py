@@ -29,7 +29,7 @@ class CitizenBankEnv(gym.Env):
         else:
             points_list = [(i,j) for (i,j,k) in self.df[['DeviceA_Code','DeviceB_Code','cost']].values]
             self.G.add_edges_from(points_list)
-        
+        """
         pos = nx.spring_layout(self.G, seed=0)
         
         nx.draw_networkx_nodes(self.G,pos)
@@ -39,6 +39,7 @@ class CitizenBankEnv(gym.Env):
         else:
             nx.draw_networkx_edge_labels(self.G, pos,)
         #plt.show()
+        """
         return 
     
     #Assuming the weight are the same

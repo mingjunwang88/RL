@@ -1,7 +1,7 @@
 import time
 import torch as t 
 
-from models import PPO
+from ppo import PPO
 import importlib
 import env_one_hot
 importlib.reload(env_one_hot)
@@ -30,7 +30,7 @@ eps_clip = 0.2          # clip parameter for PPO
 gamma = 0.99            # discount factor
 K_epochs = 80 #80            # update policy for K epochs in one PPO update
 steps_update = 4000
-num_episodes = 20
+num_episodes = 100
 steps_print = 100
 
 class Agent:
@@ -63,6 +63,7 @@ class Agent:
         num_rewards = []
         # training loop
         for i in range(num_episodes):
+            total_reward = 0
             for state in range(env.num_devices):
                 self.reset_memmory()
                 done = False
@@ -85,7 +86,7 @@ class Agent:
                     ppo.buffer.states_next.append(t.tensor(state_next, dtype=t.float))
 
                     time_step +=1
-                    current_ep_reward += reward
+                    total_reward += reward
 
                     # update PPO agent
                     if time_step % steps_update == 0:
@@ -98,9 +99,9 @@ class Agent:
                     if has_continuous_action_space and time_step % action_std_decay_freq == 0:
                         ppo_agent.decay_action_std(action_std_decay_rate, min_action_std)
                     """
-                num_rewards.append(current_ep_reward)
                 #if i % steps_print == 0:
                 #    print(f'episode: {i}: ', current_ep_reward)
+            num_rewards.append(total_reward)
 
         x = [i+1 for i in range(num_episodes)]
         ppo.plot_learning_curve(x, num_rewards)

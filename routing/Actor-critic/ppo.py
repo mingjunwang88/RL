@@ -97,10 +97,11 @@ class ActorCritic(nn.Module):
             action_probs = self.actor(state)
             if (available_actions is not None) and (available_actions.sum())>0:
                 masked = action_probs.masked_fill(~available_actions, -float('inf'))
-                action_probs = nn.functional.softmax(masked, dim=-1)
+                action_probs_masked = nn.functional.softmax(masked, dim=-1)
             dist = Categorical(action_probs)
+            dis_masked = Categorical(action_probs_masked)
 
-        action = dist.sample()
+        action = dis_masked.sample()
         action_logprob = dist.log_prob(action)
         state_val = self.critic(state)
 
